@@ -17,21 +17,19 @@ Patients from 1kplus, Pegasus and 7UP datasets has been used.
 ## Methods
 ### Unet
 
-The Unet architecture from the base vessel segmentation project (can be found [here](../Unet)) is tested as baseline.
+The backbone of the proposed framework is realized by an adjusted U-net architecture (Ronneberger, Fischer, and Brox 2015) with 4 levels, shown on Figure 1. We set the kernels and stride to 3x3x3 and 1 for convolutions and 2x2x2 and 2 for max-pooling. As an extension of the original U-net architecture, we add 2 consecutive fully connected layers to the last level realized by 1x1x1 convolutions.
 
-![Unet](./imgs/unet.png)
+![Unet](./imgs/unet_cropped.png)
 
 ### Context information
 
-A widely used multi-scale approach is applied (Yue et al. 2019; Kamnitsas et al. 2017; Choi et al., n.d.). The encoding part of our U-net is extended with a so-called context path. The input of this path is a larger - context - patch, extracted around the same center voxel as for the other encoding path. Inspired by Kamnitsas et al. 2017 (Kamnitsas et al. 2017), the input patch is then down-sampled by average-pooling with 2x2x2 kernels and stride of 2, i.e. to the same dimension but half-resolution compared to the other encoding path. The down-sampling allows to neglect fine details and focus on contextual information. The down-sampled input is fed into a parallel, equivalent sequence of layers. The two parallel downward paths are realized as duplicates (i.e. with no shared parameters) in order to enable distinctive feature encodings for the context and original patch. The output of the encoding paths - i.e. bottom level - are concatenated and fed through 2 fully connected layers realized by 1x1x1 convolution followed by ReLU. Finally, the residuals of each level of both encoding paths are concatenated to the input of the corresponding decoding level to facilitate the contribution of spatial and context information in the final prediction map.
-
-![Context-Unet](./imgs/context-unet.png)
+A widely used multi-scale approach is applied (Yue et al. 2019; Kamnitsas et al. 2017; Choi et al.). The encoding part of our U-net is extended with a so-called context path. The input of this path is a larger - context - patch, extracted around the same center voxel as for the other encoding path. Inspired by Kamnitsas et al. 2017 (Kamnitsas et al. 2017), the input patch is then down-sampled by average-pooling with 2x2x2 kernels and stride of 2, i.e. to the same dimension but half-resolution compared to the other encoding path. The down-sampling allows to neglect fine details and focus on contextual information. The down-sampled input is fed into a parallel, equivalent sequence of layers. The two parallel downward paths are realized as duplicates (i.e. with no shared parameters) in order to enable distinctive feature encodings for the context and original patch. The output of the encoding paths - i.e. bottom level - are concatenated and fed through 2 fully connected layers realized by 1x1x1 convolution followed by ReLU. Finally, the residuals of each level of both encoding paths are concatenated to the input of the corresponding decoding level to facilitate the contribution of spatial and context information in the final prediction map.
 
 ### Deep supervision
 
 Deep supervision is a method commonly used to avoid the problem of exploding or vanishing gradients in deep networks by forcing intermediate layers to produce more discriminative features. We aim to facilitate convergence of intermediate layers by direct supervision. Feature maps from intermediate decoding levels (i.e. all except bottom and final level) are first up-sampled to the output dimension and then fed into a 1x1x1 convolutional layer with sigmoid activation to produce prediction masks. From each output of the model DSC loss is computed with respect to the ground truth labeling. The loss coefficients are weighted and summed to create the training loss of the framework. We aim to reflect more emphasis on the final prediction thus assign 0.5 weight to final layer and distribute the remaining 0.5 across intermediate outputs.
 
-![DS-Context-Unet](./imgs/brainseg.png)
+![DS-Context-Unet](./imgs/brainseg_cropped.png)
 
 ## Results
 
