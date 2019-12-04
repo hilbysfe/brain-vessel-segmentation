@@ -17,9 +17,10 @@ Patients from 1kplus, Pegasus and 7UP datasets has been used.
 ## Methods
 ### Unet
 
-The backbone of the proposed framework is realized by an adjusted U-net architecture (Ronneberger, Fischer, and Brox 2015) with 4 levels, shown on Figure 1. We set the kernels and stride to 3x3x3 and 1 for convolutions and 2x2x2 and 2 for max-pooling. As an extension of the original U-net architecture, we add 2 consecutive fully connected layers to the last level realized by 1x1x1 convolutions.
+The backbone of the proposed framework is realized by an adjusted U-net architecture (Ronneberger, Fischer, and Brox 2015) with 4 levels, shown on Fig. 1. We set the kernels and stride to 3x3x3 and 1 for convolutions and 2x2x2 and 2 for max-pooling. As an extension of the original U-net architecture, we add 2 consecutive fully connected layers to the last level realized by 1x1x1 convolutions.
 
-![Unet](./imgs/unet_cropped.png)
+![Unet](./imgs/Unet_cropped.png)
+*Fig. 1: standard U-net architecture, coined U-net-base, comprising of 4 levels, 2 consecutive sequences of convolution, ReLU, Batch-normalization at each level of encoding (left side) and decoding (right side) part. 2 additional fully connected layers are added to the last level realized by 1x1x1 convolutions.*
 
 ### Context information
 
@@ -27,19 +28,20 @@ A widely used multi-scale approach is applied (Yue et al. 2019; Kamnitsas et al.
 
 ### Deep supervision
 
-Deep supervision is a method commonly used to avoid the problem of exploding or vanishing gradients in deep networks by forcing intermediate layers to produce more discriminative features. We aim to facilitate convergence of intermediate layers by direct supervision. Feature maps from intermediate decoding levels (i.e. all except bottom and final level) are first up-sampled to the output dimension and then fed into a 1x1x1 convolutional layer with sigmoid activation to produce prediction masks. From each output of the model DSC loss is computed with respect to the ground truth labeling. The loss coefficients are weighted and summed to create the training loss of the framework. We aim to reflect more emphasis on the final prediction thus assign 0.5 weight to final layer and distribute the remaining 0.5 across intermediate outputs.
+Deep supervision is a method commonly used to avoid the problem of exploding or vanishing gradients in deep networks by forcing intermediate layers to produce more discriminative features. We aim to facilitate convergence of intermediate layers by direct supervision. Feature maps from intermediate decoding levels (i.e. all except bottom and final level) are first up-sampled to the output dimension and then fed into a 1x1x1 convolutional layer with sigmoid activation to produce prediction masks. From each output of the model DSC loss is computed with respect to the ground truth labeling. The loss coefficients are weighted and summed to create the training loss of the framework. We aim to reflect more emphasis on the final prediction thus assign 0.5 weight to final layer and distribute the remaining 0.5 across intermediate outputs. Our proposed model is shown on Fig.2.
 
-![DS-Context-Unet](./imgs/brainseg_cropped.png)
+![DS-Context-Unet](./imgs/BrainSeg_architecture_cropped.png)
+*Fig. 2: U-net architecture extended with context aggregation and deep supervision, coined DS-Context-Unet. Feature maps of intermediate decoding levels are up-sampled to output - spatial - dimension (striped yellow arrows) and prediction masks are produced by 1x1x1 convolution and sigmoid activation (striped blue arrows).*
 
 ## Results
 
-Results from a 4-fold cross-validation framework are shown below. To give a broader view on the performance of our models, we report five different metrics: Precision, Recall, DSC, 95 percentile Hausdorff Distance (95HD) and Average Hausdorff Distance (AVD). We included Precision and Recall to compare models by the quality and completeness of segmentations respectively and DSC, 95HD and AVD to assess spatial overlapping between predictions and ground truth. The evaluation metrics were calculated on whole brain segmentations (reconstructed from patch-wise predictions) to reflect the use-case, by using the open source evaluation tool from (Taha and Hanbury 2015). We report averaged values and standard deviation across test sets defined by the cross-validation framework.
+Results from a 4-fold cross-validation framework are shown below. We analyzed the contribution of context-aggregation and deep supervision separately (model *Context-Unet* and *DS-Unet*) as well as together (model *DS-Context-Unet*). To give a broader view on the performance of our models, we report five different metrics: Precision, Recall, DSC, 95 percentile Hausdorff Distance (95HD) and Average Hausdorff Distance (AVD). We included Precision and Recall to compare models by the quality and completeness of segmentations respectively and DSC, 95HD and AVD to assess spatial overlapping between predictions and ground truth. The evaluation metrics were calculated on whole brain segmentations (reconstructed from patch-wise predictions) to reflect the use-case, by using the open source evaluation tool from (Taha and Hanbury 2015). We report averaged values and standard deviation across test sets defined by the cross-validation framework.
 
 A summary below shows the superiority of the proposed methods. We can see that Context-aggregation improves mainly on DSC but deep supervision can even further push our distance-based measures.
 
 |         Model        |  DSC | AVD | 95HD | Precision | Recall |
 |:--------------------:|:----:|:------:|:---------:|:-----------:|:---------:|
-| Unet Baseline        |  
+| Unet-base            |  
 | Context-Unet         |   
 | DS-Unet              |    
 | DS-Context-Unet      |
