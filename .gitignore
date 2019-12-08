@@ -103,3 +103,4 @@ venv.bak/
 # mypy
 .mypy_cache/
 code/code.pyproj
+code/.vs/code/v15/.suo

@@ -1,7 +1,7 @@
 from Unet.utils import helper
 import os
 import nibabel as nib
-from Full_vasculature.Utils import config
+import config
 import numpy as np
 import matplotlib.pyplot as plt
 
