@@ -3,26 +3,19 @@ This is the main script for training the model. It loads the datasets, creates t
 loaded datasets. After training the model and results of training are saved to files.
 """
 
-import csv
-
 import numpy as np
 import os
-import config
 from prepare_train_val_sets import create_training_datasets
-from unet import get_unet_3d, get_context_unet_3d, get_ds_unet_3d, get_brainseg_3d, get_brainseg_3d_2
-from unet import get_unet_2d, get_context_unet_2d, get_ds_unet_2d, get_brainseg_2d
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping, ModelCheckpoint
-from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import load_model
-from helper import read_tuned_params_from_csv
 import pickle
 import time
 
 
 class Trainer():
 
-	def __init__(self, model, model_path, model_data_path, metrics, loss, loss_weights, optimizer=Adam, num_patches=10, batch_size=16, learning_rate=1e-4, fine_tune=False):
+	def __init__(self, model, model_path, model_data_path, metrics, loss, loss_weights, optimizer, num_patches=10, batch_size=16, learning_rate=1e-4, fine_tune=False):
 
 		self.model = model
 		self.MODEL_PATH = model_path
@@ -252,55 +245,3 @@ class Trainer():
 
 		return self.train_metadata
 	
-
-
-
-def main(model_def, patch_size, patch_size_z, num_channels=1, dropout=0.1, num_kernels=[32, 64, 128, 256], xval=False):
-	
-	# fix random seed for reproducibility
-	np.random.seed(7)
-	# set numpy to print only 3 decimal digits for neatness
-	np.set_printoptions(precision=9, suppress=True)
-	   
-	if xval:
-		# TRAINING LOOPS
-		for fold in range(config.XVAL_FOLDS):
-	
-			# create model
-			loss, loss_weights, model, input_dim = get_training_tensors(model_def, patch_size, num_channels, dropout, num_kernels, patch_size_z)
-
-			# create trainer
-			trainer = Trainer(
-							model,
-							model_path=os.path.join(config.MODEL_PATH, str(fold), model_def),
-							model_data_path=os.path.join(config.MODEL_DATA_PATH, str(fold)),
-							metrics = config.METRICS,
-							loss = loss,
-							loss_weights = loss_weights
-					)
-
-			# train model
-			history = trainer.train_model(config.NUM_EPOCHS)
-
-	else:
-		# create model
-		loss, loss_weights, model, input_dim = get_training_tensors(model_def, patch_size, num_channels, dropout, num_kernels, patch_size_z)
-
-		# create trainer
-		trainer = Trainer(
-						model,
-						model_path=os.path.join(config.MODEL_PATH, model_def),
-						model_data_path=config.MODEL_DATA_PATH,
-						metrics = config.METRICS,
-						loss = loss,
-						loss_weights = loss_weights
-				)
-
-		# train model
-		history = trainer.train_model(config.NUM_EPOCHS)
-	
-	print('DONE')
-
-	
-if __name__ == '__main__':
-	main()

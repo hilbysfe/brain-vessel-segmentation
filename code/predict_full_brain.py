@@ -5,14 +5,7 @@ grid.
 """
 
 import os
-import config
-from helper import read_tuned_params_from_csv
-from predict_function import predict_and_save
-from metrics import dice_coef_loss, dice_coef, tversky_coef_loss, weighted_dice_loss
-from tensorflow.keras.models import load_model
 from scipy.ndimage.filters import convolve
-import tensorflow as tf
-import pickle
 import numpy as np
 import helper
 import time
@@ -305,70 +298,3 @@ class Predictor():
 		return
 
 	
-
-def main(model_def, patch_size, patch_size_z, dataset='test', num_channels=1, dropout=0.1, num_kernels=[32,64,128,256], xval=False):
-	
-	if xval:
-		for fold in range(config.XVAL_FOLDS):
-			
-			# Load meta data	
-			train_metadata_filepath = config.get_train_metadata_filepath(model_def, fold)
-			with open(train_metadata_filepath, 'rb') as pickle_file:
-				train_metadata = pickle.load(pickle_file)
-
-			# Load model	
-			model_filepath = config.get_model_filepath(model_def, fold)
-			model = load_model(model_filepath, compile=False)
-
-			# Retrieve patients
-			patients = np.load(config.get_xval_fold_splits_filepath())[fold][dataset]
-
-			# Create predictor
-			predictor = Predictor(
-							model=model,
-							train_meta_data=train_meta_data, 
-							prob_dir=os.path.join(config.RESULTS_DIR, str(fold), model_def, "probs", dataset),
-							error_dir=os.path.join(config.RESULTS_DIR, str(fold), model_def, "error_masks", dataset),
-							patients=patients, 
-							patients_dir=config.ORIGINAL_DATA_DIR['all'])
-					
-			# Retrieve probability masks
-			predictor.predict_and_save(patch_size, patch_size_z)
-
-			# Retrieve error masks
-			predictor.make_and_save_error_masks()
-
-	else:		
-		# Load meta data
-		train_metadata_filepath = config.get_train_metadata_filepath(model_def)
-		with open(train_metadata_filepath, 'rb') as pickle_file:
-			train_metadata = pickle.load(pickle_file)
-
-		# Load model
-		model_filepath = config.get_model_filepath(model_def)
-		model = load_model(model_filepath, compile=False)
-
-		# Retrieve patients
-		patients = os.listdir(config.ORIGINAL_DATA_DIR[dataset])
-
-		# Create predictor
-		predictor = Predictor(
-						model=model,
-						train_meta_data=train_meta_data, 
-						prob_dir=os.path.join(config.RESULTS_DIR, model_def, "probs", dataset),
-						error_dir=os.path.join(config.RESULTS_DIR, model_def, "error_masks", dataset),
-						patients=patients, 
-						patients_dir=config.ORIGINAL_DATA_DIR[dataset])
-
-		# Retrieve probability masks
-		predictor.predict_and_save(patch_size, patch_size_z)
-
-		# Retrieve error masks
-		predictor.make_and_save_error_masks()
-
-		
-	print('DONE')
-
-
-if __name__ == '__main__':
-	main()

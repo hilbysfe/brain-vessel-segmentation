@@ -1,19 +1,13 @@
 
 
-import train_unet
-import predict_full_brain
-import evaluate_segmentation
-import compute_error_masks
-import pickle
-
 from train_unet import Trainer
 from predict_full_brain import Predictor
 from evaluate_segmentation import Evaluator
 
 from tensorflow.keras.optimizers import Adam
 import os
+import pickle
 
-from prepare_train_val_sets import create_training_datasets
 from unet import get_unet_3d, get_context_unet_3d, get_ds_unet_3d, get_brainseg_3d, get_brainseg_3d_2
 from unet import get_unet_2d, get_context_unet_2d, get_ds_unet_2d, get_brainseg_2d
 
@@ -95,8 +89,6 @@ class Vessel_segmentation():
 		return None
 
 	# Splits of patients stored in dictionary
-	def get_xval_fold_splits_filepath():
-		return os.path.join(MODEL_DATA_PATH, "xval_folds.npy")
 	def get_probs_path(self, dataset):
 		return os.path.join(self.RESULTS_DIR, self.model_def, "probs", dataset)
 	def get_errormask_path(self, dataset):
@@ -227,7 +219,8 @@ class Vessel_segmentation():
 							model_data_path=self.MODEL_DATA_PATH,
 							metrics = self.METRICS,
 							loss = loss,
-							loss_weights = loss_weights
+							loss_weights = loss_weights,
+							optimizer=self.OPTIMIZER
 				)
 
 		# Train model

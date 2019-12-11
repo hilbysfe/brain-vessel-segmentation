@@ -65,16 +65,6 @@ def dense_block(input, depth, data_format):
 
 	return n
 
-def dense_loc_block(input, num_loc_features):
-	x = Input((num_loc_features,))
-
-	n = Dense(512, activation='sigmoid')(input)
-	n = concatenate([n, x], axis=-1)
-	n = Dense(512, activation='sigmoid')(n)
-
-	return n, x
-
-
 def up_concat_block(m, concat_channels, pool_size, concat_axis, data_format):
 	"""
 	:param m: model
@@ -166,7 +156,6 @@ def up_scale_path_3d(inputs, residuals, num_kernels, kernel_size, strides, pool_
 							   data_format=data_format)(conv_up)	
 	return final_conv
 
-
 def up_scale_path_ds_3d(inputs, residuals, num_kernels, kernel_size, strides, pool_size, concat_axis, padding, activation, final_activation, dropout, data_format, bn):
 
 	# UP-SAMPLING PART (right side of the U-net)
@@ -222,43 +211,6 @@ def up_scale_path_ds(inputs, residuals, num_kernels, kernel_size, strides, pool_
 
 	return outputs
 
-
-def up_scale_path_ds_3d_2(inputs, residuals, num_kernels, kernel_size, strides, pool_size, concat_axis, padding,
-						activation, final_activation, dropout, data_format, bn):
-	# UP-SAMPLING PART (right side of the U-net)
-	# layers on each level: upsampling2d -> concatenation with feature maps of corresponding level from down-sampling
-	# part -> convolution2d -> dropout -> convolution2d
-	# final convolutional layer maps feature maps to desired number of classes
-
-	outputs = []
-	output = inputs
-	output_dim = residuals["conv_0"].shape
-	for i in range(len(num_kernels) - 1):
-		# level i
-		output = up_concat_block_3d(output, residuals["conv_" + str(len(num_kernels) - i - 2)], pool_size,
-									 concat_axis, data_format)
-		output = conv_block_3d(output, num_kernels[len(num_kernels) - i - 2], kernel_size, strides, padding,
-								activation, dropout, data_format, bn)
-
-		if i < len(num_kernels) - 2:
-			# get level prediction
-			upsample = UpSampling3D(size=(
-			int(output_dim[1] / output.shape[1]), int(output_dim[2] / output.shape[2]),
-			int(output_dim[3] / output.shape[3])), data_format=data_format)(output)
-			upsample = Convolution3D(1, 1, strides=strides, activation=final_activation, padding=padding,
-								   data_format=data_format)(upsample)
-			outputs.append(upsample)
-		else:
-			outputs.append(output)
-
-	# Concat DS outputs
-	output = concatenate(outputs, axis=-1)
-
-	# Final 1x1 convolution
-	final_conv = Convolution3D(1, 1, strides=strides, activation=final_activation, padding=padding,
-							   data_format=data_format)(output)
-
-	return final_conv
 
 ### UNET-2D ###
 def get_unet_2d(input_dim, num_channels, dropout, activation='relu', final_activation='sigmoid', 
@@ -562,62 +514,6 @@ def get_ds_unet_3d(input_dim, num_channels, dropout, activation='relu', final_ac
 
 	return model
 
-### DS-UNET-3D-2 ###
-def get_ds_unet_3d_2(input_dim, num_channels, dropout, activation='relu', final_activation='sigmoid',
-				   kernel_size=(3, 3, 3), pool_size=(2, 2, 2), strides=(1, 1, 1), num_kernels=None, concat_axis=-1,
-				   data_format='channels_last', padding='same', bn=True):
-	"""
-	Defines the architecture of the u-net. Reconstruction of the u-net introduced in: https://arxiv.org/abs/1505.04597
-
-	:param patch_size: height of the patches, positive integer
-	:param num_channels: number of channels of the input images, positive integer
-	:param activation: activation_function after every convolution
-	:param final_activation: activation_function of the final layer
-	:param optimizer: optimization algorithm for updating the weights and bias values
-	:param learning_rate: learning_rate of the optimizer, float
-	:param dropout: percentage of weights to be dropped, float between 0 and 1
-	:param loss_function: loss function also known as cost function
-	:param metrics: metrics for evaluation of the model performance
-	:param kernel_size: size of the convolution kernel, tuple of two positive integers
-	:param pool_size: factors by which to downscale (vertical, horizontal), tuple of two positive integers
-	:param strides: strides values, tuple of two positive integers
-	:param num_kernels: array specifying the number of convolution filters in every level, list of positive integers
-		containing value for each level of the model
-	:param concat_axis: concatenation axis, concatenate over channels, positive integer
-	:param data_format: ordering of the dimensions in the inputs, takes values: 'channel_first' or 'channel_last'
-	:param padding: used padding by convolution, takes values: 'same' or 'valid'
-	:param bn: weather to use Batch Normalization layers after each convolution layer, True for use Batch Normalization,
-	 False do not use Batch Normalization
-	:return: compiled u-net model
-	"""
-
-	# build model
-	# specify the input shape
-	inputs = Input((input_dim[0], input_dim[1], input_dim[2], num_channels))
-	# BN for inputs
-	layer = BatchNormalization()(inputs)
-
-	# --- Down-scale side
-	conv_down, residuals = down_scale_path_3d(layer, num_kernels, kernel_size, strides, pool_size, padding, activation,
-											  dropout, data_format, bn)
-
-	# Fully connected 1
-	fl1 = Convolution3D(num_kernels[-1], (1, 1, 1), strides=(1, 1, 1), padding="same", activation="relu",
-						data_format=data_format)(conv_down)
-	# Fully connected 2
-	fl2 = Convolution3D(num_kernels[-1], (1, 1, 1), strides=(1, 1, 1), padding="same", activation="relu",
-						data_format=data_format)(fl1)
-
-	# --- Up-scale side
-	outputs = up_scale_path_ds_3d_2(fl2, residuals, num_kernels, kernel_size, strides, pool_size, concat_axis, padding,
-								  activation, final_activation, dropout, data_format, bn)
-
-	model = Model(inputs=inputs, outputs=outputs)
-
-	# print out model summary to console
-	model.summary()
-
-	return model
 
 ### BRAINSEG-2D ###
 def get_brainseg_2d(input_dim, num_channels, dropout, activation='relu', final_activation='sigmoid',
@@ -744,67 +640,6 @@ def get_brainseg_3d(input_dim, num_channels, dropout, activation='relu', final_a
 	for i in range(len(outputs)):
 		naming_layer = Lambda(lambda x: x[0], name="output-"+str(i))
 		outputs[i] = naming_layer([outputs[i], model_inputs[0]])
-
-	# --- Create model
-	model = Model(inputs=model_inputs, outputs=outputs)
-
-	# --- Print out model summary to console
-	model.summary()
-
-	return model
-
-### BRAINSEG-3D-2 ###
-def get_brainseg_3d_2(input_dim, num_channels, dropout, activation='relu', final_activation='sigmoid',
-					kernel_size=(3, 3, 3), pool_size=(2, 2, 2), strides=(1, 1, 1), num_kernels=None, concat_axis=-1,
-					data_format='channels_last', padding='same', bn=True):
-	### DOWNS-SCALE PATHS
-	model_inputs = []
-	outputs = []
-	residual_list = []
-
-	# --- Get low resolution patch size
-	lri = 0 if input_dim[0][0] > input_dim[1][0] else 1
-	hri = 1 if input_dim[0][0] > input_dim[1][0] else 0
-
-	### BUILD FEEDFORWARD
-	for i, dim in enumerate(input_dim):
-		# specify the input shape
-		input = Input((dim[0], dim[1], dim[2], num_channels))
-		model_inputs.append(input)
-
-		# BN for inputs
-		input = BatchNormalization()(input)
-
-		# scale down context path
-		if i == lri:
-			input = AveragePooling3D(pool_size=(2, 2, 2))(input)
-
-		# build down-scale paths
-		conv, residuals = down_scale_path_3d(input, num_kernels, kernel_size, strides, pool_size, padding, activation,
-											 dropout, data_format, bn)
-
-		outputs.append(conv)
-		residual_list.append(residuals)
-
-	### BOTTLENECK
-	# Concat feature maps
-	concat = concatenate(outputs, axis=-1)
-	# Fully connected 1
-	fl1 = Convolution3D(num_kernels[-1], (1, 1, 1), strides=(1, 1, 1), padding="same", activation="relu",
-						data_format=data_format)(concat)
-	# Fully connected 2
-	fl2 = Convolution3D(num_kernels[-1], (1, 1, 1), strides=(1, 1, 1), padding="same", activation="relu",
-						data_format=data_format)(fl1)
-
-	### CONCAT/PREPARE RESIDUALS
-	merged_residuals = {}
-	for key in residual_list[0].keys():
-		merged_residuals[key] = concatenate([residual_list[0][key], residual_list[1][key]], axis=-1)
-
-	### UP-SCALE PATH
-	outputs = up_scale_path_ds_3d_2(fl2, merged_residuals, num_kernels, kernel_size,
-								  strides, pool_size, concat_axis, padding, activation, final_activation, dropout,
-								  data_format, bn)
 
 	# --- Create model
 	model = Model(inputs=model_inputs, outputs=outputs)

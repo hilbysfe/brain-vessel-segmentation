@@ -5,8 +5,6 @@ so that they can be fed into the model for training.
 
 import numpy as np
 import os
-import config
-import helper
 
 def get_feature_label_set(datadir, patch_size):
 	"""
