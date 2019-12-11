@@ -5,17 +5,17 @@ scripts.
 
 import os
 import time
-from Unet.utils.metrics import dice_coef_loss, dice_coef
+from metrics import dice_coef_loss, dice_coef
 from tensorflow.keras.optimizers import Adam
 
 print(os.getcwd())
 TOP_LEVEL = r"/home/adam/code/Vessel_segmentation/"
 
-#DATA_PATH = r"C:\Users\Adam Hilbert\Data_M2\FV_data"
-DATA_PATH = r"/data-nvme/adam/"
-MODEL_PATH = r"/data-nvme/adam/models"
-#MODEL_PATH = r"C:\Users\Adam Hilbert\Data_M2\FV_data\models\\"
-EXPERIMENT_NAME = 'Final-Cross-validation'
+DATA_PATH = r"C:\Users\Adam Hilbert\Data_M2\FV_data"
+#DATA_PATH = r"/data-nvme/adam/"
+#MODEL_PATH = r"/data-nvme/adam/models"
+MODEL_PATH = r"C:\Users\Adam Hilbert\Data_M2\FV_data\models\\"
+EXPERIMENT_NAME = 'Test'
 MODEL_DATA_PATH = os.path.join(r"/data-nvme/adam/model_data", EXPERIMENT_NAME)
 #MODEL_DATA_PATH = os.path.join(r"C:\Users\Adam Hilbert\Data_M2\FV_data\model_data", EXPERIMENT_NAME)
 RESULTS_DIR = os.path.join(r"/data-raid5/adam/results", EXPERIMENT_NAME)
@@ -48,7 +48,7 @@ PATCH_SIZES_Z = {
 	'ds-unet-2d': [8],
 	'brainseg-2d': [8, 16]
 	}  # different quadratic patch sizes n x n
-NUM_PATCHES = 2000  # number of patches we want to extract from one stack (one patient)
+NUM_PATCHES = 10  # number of patches we want to extract from one stack (one patient)
 
 # -----------------------------------------------------------
 # AUGMENTATION SETTINGS

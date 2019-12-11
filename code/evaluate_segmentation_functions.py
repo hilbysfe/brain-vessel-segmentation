@@ -9,7 +9,7 @@ import numpy as np
 import subprocess
 
 # compare segmentations based on the EvaluateSegmentation software of Taha
-from Full_vasculature.Utils import config
+import config
 
 
 def segment_comparison(goldstandard_path, segmentation_path, executable_path, eval_result_path, threshold, measures):

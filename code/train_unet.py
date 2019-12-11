@@ -8,112 +8,21 @@ import csv
 import numpy as np
 import os
 import config
-from prepare_train_val_sets import create_training_datasets_fold, create_training_datasets
+from prepare_train_val_sets import create_training_datasets
 from unet import get_unet_3d, get_context_unet_3d, get_ds_unet_3d, get_brainseg_3d, get_brainseg_3d_2
 from unet import get_unet_2d, get_context_unet_2d, get_ds_unet_2d, get_brainseg_2d
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping, ModelCheckpoint
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import load_model
 from helper import read_tuned_params_from_csv
 import pickle
-
-def get_training_tensors(model_def, patch_size, num_channels, dropout, num_kernels, patch_size_z=None):
-	#### 3D MODELS #####
-	if model_def == 'unet-3d':
-		input_dim = [ [patch_size[0], patch_size[0], patch_size_z[0]] ]
-
-		model = get_unet_3d(input_dim[0], num_channels, dropout, num_kernels=num_kernels)
-		
-		loss = config.LOSS_FUNCTION
-		loss_weights = None
-	elif model_def == 'context-unet-3d':
-		input_dim = [[patch_size[0], patch_size[0], patch_size_z[0]], [patch_size[1], patch_size[1], patch_size_z[1]]]
-
-		model = get_context_unet_3d(input_dim, num_channels, dropout, num_kernels=num_kernels)
-
-		loss = config.LOSS_FUNCTION
-		loss_weights = None
-	elif model_def == 'ds-unet-3d':
-		input_dim = [ [patch_size[0], patch_size[0], patch_size_z[0]] ]
-
-		model = get_ds_unet_3d(input_dim[0], num_channels, dropout, num_kernels=num_kernels)
-
-		# Multiple loss
-		loss = {}
-		for i in range(len(num_kernels) - 1):
-			loss["output-" + str(i)] = config.LOSS_FUNCTION
-		loss_weights = {}
-		for i in range(len(num_kernels) - 1):
-			loss_weights["output-" + str(i)] = 0.5 if i == len(num_kernels) - 2 else 0.5 / (len(num_kernels) - 2)
-
-	elif model_def == 'brainseg-3d':
-		input_dim = [[patch_size[0], patch_size[0], patch_size_z[0]], [patch_size[1], patch_size[1], patch_size_z[1]]]
-
-		model = get_brainseg_3d(input_dim, num_channels, dropout, num_kernels=num_kernels)
-
-		# Multiple loss
-		loss = {}
-		for i in range(len(num_kernels) - 1):
-			loss["output-" + str(i)] = config.LOSS_FUNCTION
-		loss_weights = {}
-		for i in range(len(num_kernels) - 1):
-			loss_weights["output-" + str(i)] = 0.5 if i == len(num_kernels) - 2 else 0.5 / (len(num_kernels) - 2)
-
-	elif model_def == 'brainseg-3d-2':
-		input_dim = [[patch_size[0], patch_size[0], patch_size_z[0]], [patch_size[1], patch_size[1], patch_size_z[1]]]
-
-		model = get_brainseg_3d_2(input_dim, num_channels, dropout, num_kernels=num_kernels)
-
-		loss = config.LOSS_FUNCTION
-		loss_weights = None
-
-	#### 2D MODELS #####
-	elif model_def == 'unet-2d':
-		input_dim = [ [patch_size[0], patch_size[0]] ]
-
-		model = get_unet_2d(input_dim[0], num_channels, dropout, num_kernels=num_kernels)
-		
-		loss = config.LOSS_FUNCTION
-		loss_weights = None
-	elif model_def == 'context-unet-2d':
-		input_dim = [[patch_size[0], patch_size[0]], [patch_size[1], patch_size[1]]]
-
-		model = get_context_unet_2d(input_dim, num_channels, dropout, num_kernels=num_kernels)
-
-		loss = config.LOSS_FUNCTION
-		loss_weights = None
-	elif model_def == 'ds-unet-2d':
-		input_dim = [ [patch_size[0], patch_size[0]] ]
-
-		model = get_ds_unet_2d(input_dim[0], num_channels, dropout, num_kernels=num_kernels)
-
-		# Multiple loss
-		loss = {}
-		for i in range(len(num_kernels) - 1):
-			loss["output-" + str(i)] = config.LOSS_FUNCTION
-		loss_weights = {}
-		for i in range(len(num_kernels) - 1):
-			loss_weights["output-" + str(i)] = 0.5 if i == len(num_kernels) - 2 else 0.5 / (len(num_kernels) - 2)
-
-	elif model_def == 'brainseg-2d':
-		input_dim = [[patch_size[0], patch_size[0]], [patch_size[1], patch_size[1]]]
-
-		model = get_brainseg_2d(input_dim, num_channels, dropout, num_kernels=num_kernels)
-
-		# Multiple loss
-		loss = {}
-		for i in range(len(num_kernels) - 1):
-			loss["output-" + str(i)] = config.LOSS_FUNCTION
-		loss_weights = {}
-		for i in range(len(num_kernels) - 1):
-			loss_weights["output-" + str(i)] = 0.5 if i == len(num_kernels) - 2 else 0.5 / (len(num_kernels) - 2)
-						
-	return loss, loss_weights, model, input_dim, num_of_outputs
+import time
 
 
 class Trainer():
 
-	def __init__(self, model, model_path, model_data_path, metrics, loss, loss_weights, optimizer=Adam, num_patches=2000, batch_size=64, learning_rate=1e-4):
+	def __init__(self, model, model_path, model_data_path, metrics, loss, loss_weights, optimizer=Adam, num_patches=10, batch_size=16, learning_rate=1e-4, fine_tune=False):
 
 		self.model = model
 		self.MODEL_PATH = model_path
@@ -128,6 +37,7 @@ class Trainer():
 		self.batch_size = batch_size 
 		self.loss = loss
 		self.loss_weights = loss_weights
+		self.fine_tune = fine_tune
 		################################################
 	
 		print('metrics', self.metrics)
@@ -135,7 +45,21 @@ class Trainer():
 		print('learning rate', self.learning_rate)
 		print('________________________________________________________________________________')
 		
-		return None
+		self.model_trained = False
+		self.train_metadata = None
+
+
+		# --- Check if trained model exists in model path
+		model_filepath = self.get_model_filepath()
+		if os.path.exists(model_filepath) and not self.fine_tune:
+			print("Trained model exists.")
+			self.model_trained = True
+			self.model = load_model(model_filepath, compile=False)
+			
+			with open(self.get_train_metadata_filepath(), 'rb') as pickle_file:
+				self.train_metadata = pickle.load(pickle_file)
+		
+		return
 
 	class BalancedDataGenerator(Sequence):
 		'Generates data for Keras'
@@ -254,16 +178,19 @@ class Trainer():
 		return os.path.join(self.MODEL_PATH, 'train_history.csv')
 	# model data for train and test sets
 	def get_model_data_dir(self):
-		return {'train': os.path.join(self.MODEL_DATA_PATH, 'train'), 'test': os.path.join(self.MODEL_DATA_PATH, 'test')}
+		return {'train': os.path.join(self.MODEL_DATA_PATH, 'train'), 'val': os.path.join(self.MODEL_DATA_PATH, 'val'), 'test': os.path.join(self.MODEL_DATA_PATH, 'test')}
 	
+		
+	def get_train_metadata(self):
+		return self.train_metadata
+
 	# train model
-	def train_model(self, num_epochs, fine_tune=False):
+	def train_model(self, num_epochs):
 		
 		# --- Check if trained model exists in model path
-		model_filepath = self.get_model_filepath()
-		if os.path.exists(model_filepath) and not fine_tune:
+		if self.model_trained and not self.fine_tune:
 			print("Trained model exists.")
-			return
+			return self.train_meta_data
 
 		# --- Create folders, files to save		
 		model_path = self.get_model_dir()
@@ -271,17 +198,19 @@ class Trainer():
 			os.makedirs(model_path)
 			
 		# --- Load model data
-		train_X_0, train_X_1, train_y_0, train_y_1, val_X_0, val_X_1, val_y_0, val_y_1, = create_training_datasets_fold(patch_size_list, fold)
+		patch_size_list = [self.model.layers[1].input_shape[0][1], self.model.layers[0].input_shape[0][1]]
+		train_X_0, train_X_1, train_y_0, train_y_1, val_X_0, val_X_1, val_y_0, val_y_1, = create_training_datasets(patch_size_list, self.get_model_data_dir())
 
 		# --- Compile model
-		self.model.compile(optimizer=optimizer(lr=self.learning_rate), loss=self.loss,
+		self.model.compile(optimizer=self.optimizer(lr=self.learning_rate), loss=self.loss,
 					metrics=self.metrics, loss_weights=self.loss_weights)
 
 		# --- Creating generators	
 		num_of_outputs = len(self.loss.keys()) if isinstance(self.loss, dict) else 1
-		train_generator = BalancedDataGenerator(train_X_0, train_X_1, train_y_0[0], train_y_1[0], num_of_outputs,  
+		input_dim = [self.model.layers[1].input_shape[0][1:-1], self.model.layers[0].input_shape[0][1:-1]]
+		train_generator = self.BalancedDataGenerator(train_X_0, train_X_1, train_y_0[0], train_y_1[0], num_of_outputs,  
 													batch_size=self.batch_size, dim=input_dim)
-		val_generator = BalancedDataGenerator(val_X_0, val_X_1, val_y_0[0], val_y_1[0], num_of_outputs, 
+		val_generator = self.BalancedDataGenerator(val_X_0, val_X_1, val_y_0[0], val_y_1[0], num_of_outputs, 
 													batch_size=self.batch_size, dim=input_dim)
 	
 		# -----------------------------------------------------------
@@ -296,7 +225,7 @@ class Trainer():
 									   save_weights_only=False, mode='auto')
 		# training
 		steps = int(np.floor((len(train_X_0[0])+len(train_X_1[0])) / self.batch_size))
-		history = model.fit_generator(
+		history = self.model.fit_generator(
 							train_generator,
 							validation_data=val_generator,
 							steps_per_epoch=steps,
@@ -308,29 +237,25 @@ class Trainer():
 
 		duration_train = int(time.time() - start_train)
 		print('training took:', (duration_train // 3600) % 60, 'hours', (duration_train // 60) % 60,
-				'minutes', duration_train % 60,
-				'seconds')
+				'minutes', duration_train % 60, 'seconds')
+			
 
-		# Save parameters
-		train_metadata_filepath = self.get_train_metadata_filepath()
-		print('Saving params to ', train_metadata_filepath)
-		history.params['batchsize'] = batch_size
-		history.params['dropout'] = dropout
-		history.params['learning_rate'] = learning_rate
+		# Save parameters		
+		history.params['batchsize'] = self.batch_size
+		history.params['learning_rate'] = self.learning_rate
 		history.params['samples'] = len(train_X_0[0]) + len(train_X_1[0])
 		history.params['val_samples'] = len(val_X_0[0]) + len(val_X_1[0])
 		history.params['total_time'] = duration_train
-		history.params['model'] = model_def
-		results = {'params': history.params, 'history': history.history}
-		with open(train_metadata_filepath, 'wb') as handle:
-			pickle.dump(results, handle)
+		
+		self.train_metadata = {'params':history.params, 'history':history.history}
+		self.model_trained = True
 
-		return history
+		return self.train_metadata
 	
 
 
 
-def main(model_def, patch_size, num_channels, dropout, num_kernels, patch_size_z, xval=False):
+def main(model_def, patch_size, patch_size_z, num_channels=1, dropout=0.1, num_kernels=[32, 64, 128, 256], xval=False):
 	
 	# fix random seed for reproducibility
 	np.random.seed(7)

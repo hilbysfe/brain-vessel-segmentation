@@ -211,7 +211,7 @@ def up_scale_path_ds(inputs, residuals, num_kernels, kernel_size, strides, pool_
 		
 		if i < len(num_kernels)-2:
 			# get level prediction
-			output = UpSampling2D(size=(int(output_dim[1]/conv_up.shape[1]), int(output_dim[2]/conv_up.shape[2])), data_format=data_format)(conv_up)
+			output = UpSampling2D(size=(int(output_dim[1]//conv_up.shape[1]), int(output_dim[2]//conv_up.shape[2])), data_format=data_format)(conv_up)
 			output = Convolution2D(1, 1, strides=strides, activation=final_activation, padding=padding,
 							   data_format=data_format)(output)
 			outputs.append(output)

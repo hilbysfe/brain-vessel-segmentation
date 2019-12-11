@@ -12,18 +12,16 @@ import numpy as np
 
 class Evaluator():
 
-		def __init__(self, patients, run_params, exec_path, eval_path, patients_dir, prob_dir):
+		def __init__(self, patients, run_params, exec_path, eval_path, label_files, prob_files):
 		
 			self.EXECUTABLE_PATH = exec_path
 			self.patients = patients
 			self.run_params = run_params
 			self.EVAL_PATH = eval_path
-			self.PATIENTS_DIR = patients_dir
-			self.PROB_DIR = prob_dir
+			self.label_files = label_files
+			self.prob_files = prob_files
 
 			return None
-
-
 		
 		# xml path for Evaluation tool
 		def get_eval_segment_dataset_xmlpath(self, patient):
@@ -34,10 +32,10 @@ class Evaluator():
 		def get_eval_segment_dataset_csvpath(self):
 			return os.path.join(self.EVAL_PATH, 'eval_segment_' + time.strftime("%Y%m%d-%H%M%S") + '.csv')
 
-		def get_probs_filepath(self, patient):
-			return os.path.join(self.PROB_DIR, 'probs_' + patient + '_.nii')
 					   			 		  
 		def evaluate_segmentations(self, threshold, measures):
+			
+			start_total = time.time()
 			# create results folder for evaluation segmentation
 			if not os.path.exists(self.EVAL_PATH):
 				os.makedirs(self.EVAL_PATH)
@@ -46,13 +44,13 @@ class Evaluator():
 			csv_path_per_patient = self.get_eval_segment_dataset_csvpath_per_patient()
 			xml_paths = []
 
-			for patient in self.patients:
+			for i, patient in enumerate(self.patients):
 				print('________________________________________________________________________________')
 				print('patient:', patient)
 			
 				# load labels and segmentations
-				label_path = os.path.join(self.PATIENTS_DIR, patient, config.LABEL_FILENAME)
-				segmentation_path = self.get_probs_filepath(patient)
+				label_path = self.label_files[i]
+				segmentation_path = self.prob_files[i]
 
 				# for saving results of evaluate segmentation to xml and to csv
 				xml_path_patient = self.get_eval_segment_dataset_xmlpath(patient)
@@ -69,7 +67,14 @@ class Evaluator():
 
 			parse_xml_to_csv_avg_for_patients(xml_paths, csv_path, self.run_params)
 
-def main(model_def, dataset, patch_size, threshold, xval=False):
+			duration_total = int(time.time() - start_total)
+			print('performance assessment took:', (duration_total // 3600) % 60, 'hours', (duration_total // 60) % 60, 'minutes',
+				  duration_total % 60,
+				  'seconds')
+
+			return
+
+def main(model_def, dataset='test', threshold=0.5, xval=False):
 	################################################
 	# SET PARAMETERS
 	################################################
@@ -85,13 +90,13 @@ def main(model_def, dataset, patch_size, threshold, xval=False):
 	executable_path = config.TOP_LEVEL + 'EvaluateSegmentation'
 	   
 	# PARAMETER LOOPS
-	start_total = time.time()
+	
 	if xval:
 		for fold in range(config.XVAL_FOLDS):
 
 			patients = np.load(config.get_xval_fold_splits_filepath())[fold][dataset]
 		
-			run_params = run_params = {'patch size': patch_size, 'num epochs': num_epochs, 'batch size': batch_size,
+			run_params = run_params = {'num epochs': num_epochs, 'batch size': batch_size,
 								'learning rate': learning_rate, 'dropout': dropout, 'num_kernels': num_kernels}
 
 			evaluator = Evaluator(
@@ -106,7 +111,7 @@ def main(model_def, dataset, patch_size, threshold, xval=False):
 	else:
 					
 		patients = os.listdir(config.ORIGINAL_DATA[dataset])
-		run_params = run_params = {'patch size': patch_size, 'num epochs': num_epochs, 'batch size': batch_size,
+		run_params = run_params = {'num epochs': num_epochs, 'batch size': batch_size,
 							'learning rate': learning_rate, 'dropout': dropout, 'num_kernels': num_kernels}
 
 		evaluator = Evaluator(
@@ -114,16 +119,13 @@ def main(model_def, dataset, patch_size, threshold, xval=False):
 						run_params=run_params, 
 						exec_path=executable_path, 
 						eval_path=os.path.join(config.RESULTS_DIR, model_def, "eval_segment", dataset), 
-						patients_dir=config.ORIGINAL_DATA_DIR[dataset], 
+						label_files=config.ORIGINAL_DATA_DIR[dataset], 
 						prob_dir=os.path.join(config.RESULTS_DIR, model_def, "probs", dataset))
 
 		evaluator.evaluate_segmentations(threshold, measures)
 		
 
-	duration_total = int(time.time() - start_total)
-	print('performance assessment took:', (duration_total // 3600) % 60, 'hours', (duration_total // 60) % 60, 'minutes',
-		  duration_total % 60,
-		  'seconds')
+	
 	print('DONE')
 
 

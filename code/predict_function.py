@@ -6,10 +6,10 @@ model and saves the probability matrix as nifti file.
 
 import time
 import numpy as np
-from Full_vasculature.Utils import config
+import config
 import os
 from scipy.ndimage.filters import convolve
-from Unet.utils import helper
+import helper
 
 
 def predict_and_save(patch_size, data_dir, model, train_metadata, patch_size_z=None):

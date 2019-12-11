@@ -1,9 +1,8 @@
-from Unet.utils import helper
+import helper
 import os
 import nibabel as nib
 import config
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 def make_error_mask(outputpath, prob_path, ground_truth_path):
@@ -25,8 +24,8 @@ def make_error_mask(outputpath, prob_path, ground_truth_path):
 	helper.create_and_save_nifti(error_array, outputpath)
 
 
-def main(model_def, xval=False):
-	dataset = 'test'  # train / val / set
+def main(model_def, dataset = 'test', xval=False):
+	
 	data_dir = config.ORIGINAL_DATA_DIR['all']
 
 	if xval:

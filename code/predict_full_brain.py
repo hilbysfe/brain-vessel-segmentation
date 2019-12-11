@@ -15,19 +15,22 @@ import tensorflow as tf
 import pickle
 import numpy as np
 import helper
+import time
 
 
 class Predictor():
 
-	def __init__(self, model, train_meta_data, prob_dir, error_dir, patients, patients_dir):
+	def __init__(self, model, train_metadata, prob_dir, error_dir, patients, patients_dir, label_filename, threshold=0.5):
 		self.model = model
-		self.train_meta_data = train_meta_data
+		self.train_metadata = train_metadata
 		self.PROB_DIR = prob_dir
 		self.ERROR_DIR = error_dir
 		self.patients = patients
 		self.PATIENTS_DIR = patients_dir
+		self.threshold = threshold
+		self.label_filename = label_filename
 
-		return None
+		return
 
 	# where to save probability map from validation as nifti
 	def get_probs_filepath(self, patient):
@@ -35,9 +38,10 @@ class Predictor():
 	# where to save error mask
 	def get_errormasks_filepath(self, patient):
 		return os.path.join(self.ERROR_DIR, 'error_mask_' + patient + '_.nii')
-	
 
-	def predict(patch_size, data_dir, patch_size_z=None):
+		
+
+	def predict(self, patch_size, data_dir, patch_size_z=None):
 		print('________________________________________________________________________________')
 		print('patient dir:', data_dir)
 
@@ -46,7 +50,7 @@ class Predictor():
 		# -----------------------------------------------------------	
 		print('> Loading image...')
 		img_mat = helper.load_nifti_mat_from_file(
-			os.path.join(data_dir, '001.nii'))
+			os.path.join(data_dir, '001.nii')).astype(np.float32)
 		print('> Loading mask...')
 		if not os.path.exists(os.path.join(data_dir, 'mask.nii')):
 			avg_mat = convolve(img_mat.astype(dtype=float), np.ones((16,16,16), dtype=float)/4096, mode='constant', cval=0)
@@ -75,7 +79,7 @@ class Predictor():
 		# start cutting out and predicting the patches
 		starttime_total = time.time()
 
-		if '3d' in train_metadata['params']['model']:
+		if '3d' in self.train_metadata['params']['model']:
 			x_min = 0 # min(x)
 			y_min = 0 # min(y)
 			z_min = 0 # min(z)
@@ -151,12 +155,15 @@ class Predictor():
 									  offset_z : offset_z + (img_patch_end_z-img_patch_start_z), 0] \
 							= img_mat[img_patch_start_x: img_patch_end_x, img_patch_start_y: img_patch_end_y, img_patch_start_z:img_patch_end_z]
 	
-							img_patches.append(np.expand_dims(img_patch,0))
+							img_patches.append(np.expand_dims(img_patch.astype(np.float32),0))
 						
 						# predict the patch with the model and save to probability matrix
-						prob_mat[patch_start_x: patch_end_x, patch_start_y: patch_end_y, patch_start_z:patch_end_z] = (np.reshape(
-							model(img_patches)[-1],
-							(patch_size[0], patch_size[0], patch_size_z[0])) > config.THRESHOLD).astype(np.uint8)[:patch_end_x-patch_start_x, :patch_end_y-patch_start_y, :patch_end_z-patch_start_z]
+						prob_mat[patch_start_x: patch_end_x, patch_start_y: patch_end_y, patch_start_z:patch_end_z] = \
+								(np.reshape(
+									np.squeeze(self.model.predict(img_patches)[-1]),
+									(patch_size[0], patch_size[0], patch_size_z[0])
+								 ) > self.THRESHOLD).astype(np.uint8) \
+						[:patch_end_x-patch_start_x, :patch_end_y-patch_start_y, :patch_end_z-patch_start_z]
 		else:
 			# proceed slice by slice
 			for i in z_slices:
@@ -232,8 +239,8 @@ class Predictor():
 
 						# predict the patch with the model and save to probability matrix
 						prob_mat[patch_start_x: patch_end_x, patch_start_y: patch_end_y, i] = (np.reshape(
-							model(img_patches)[-1],
-							(patch_size[0], patch_size[0])) > config.THRESHOLD).astype(np.uint8)[:patch_end_x-patch_start_x, :patch_end_y-patch_start_y]
+							np.squeeze(self.model.predict(img_patches)[-1]),
+							(patch_size[0], patch_size[0])) > self.THRESHOLD).astype(np.uint8)[:patch_end_x-patch_start_x, :patch_end_y-patch_start_y]
 
 		# how long does the prediction take for a patient
 		duration_total = time.time() - starttime_total
@@ -253,7 +260,7 @@ class Predictor():
 			if not os.path.exists(self.get_probs_filepath(patient)):
 				# predict
 				data_dir = os.path.join(self.PATIENTS_DIR, patient)
-				prob_mat = self.predict(patch_size, data_dir, self.model, self.train_metadata, patch_size_z)
+				prob_mat = self.predict(patch_size, data_dir, patch_size_z)
 				# save
 				helper.create_and_save_nifti(prob_mat, self.get_probs_filepath(patient))
 
@@ -289,17 +296,17 @@ class Predictor():
 				if not os.path.exists(prob_filepath):
 					print("No probability mask found.")
 				else:
-					label_path = os.path.join(self.PATIENTS_DIR, patient, config.LABEL_FILENAME)
+					label_path = os.path.join(self.PATIENTS_DIR, patient, self.label_filename)
 					output_path = self.get_errormasks_filepath(patient)
 					# get mask
-					error_mask = make_error_mask(prob_filepath, label_path)
+					error_mask = self.make_error_mask(prob_filepath, label_path)
 					# save
 					helper.create_and_save_nifti(error_mask, output_path)
 		return
 
 	
 
-def main(model_def, patch_size, num_channels, dropout, num_kernels, patch_size_z, dataset, xval=False):
+def main(model_def, patch_size, patch_size_z, dataset='test', num_channels=1, dropout=0.1, num_kernels=[32,64,128,256], xval=False):
 	
 	if xval:
 		for fold in range(config.XVAL_FOLDS):
