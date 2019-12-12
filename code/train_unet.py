@@ -214,6 +214,7 @@ class Trainer():
 		csv_logfile = self.get_train_history_filepath()
 		csv_logger = CSVLogger(csv_logfile)
 		early_stopper = EarlyStopping(monitor='val_loss', min_delta=1e-4, patience=3)
+		model_filepath = self.get_model_filepath()
 		model_checkpoint = ModelCheckpoint(model_filepath, monitor='val_loss', save_best_only=True,
 									   save_weights_only=False, mode='auto')
 		# training

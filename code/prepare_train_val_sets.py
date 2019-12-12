@@ -18,38 +18,18 @@ def get_feature_label_set(datadir, patch_size):
 	"""
 
 	# prepare empty matrices for features (X) and labels (y) to store the loaded patches for every patient
-	if isinstance(patch_size, list):
-		# retrieve patch file names
-		patients = np.unique([f.split('_')[0] for f in os.listdir(datadir)])
-		nr_of_patches = len(os.listdir(datadir)) // (len(patients)*len(patch_size)*2)
-		print(str(nr_of_patches) + " patches found per patient (per patch_size).")
-		X_0 = []
-		X_1 = []
-		y_0 = []
-		y_1 = []
-		for patient in patients:
-			for p, patch in enumerate(patch_size):
-				X_0.append([])
-				X_1.append([])
-				y_0.append([])
-				y_1.append([])
-				for i in range(nr_of_patches//2):
-					X_0[p].append(os.path.join(datadir, patient+'_img_'+str(patch)+'_vessel_'+str(i)+'.npz'))
-					y_0[p].append(os.path.join(datadir, patient+'_label_'+str(patch)+'_vessel_'+str(i)+'.npz'))
-				for i in range(nr_of_patches//2, nr_of_patches):
-					X_1[p].append(os.path.join(datadir, patient+'_img_'+str(patch)+'_nonvessel_'+str(i)+'.npz'))
-					y_1[p].append(os.path.join(datadir, patient+'_label_'+str(patch)+'_nonvessel_'+str(i)+'.npz'))
-
-	else:
-		X_0 = [os.path.join(datadir, file) for file in filenames if 'img_' + str(patch_size) + '_vessel' in file]
-		X_1 = [os.path.join(datadir, file) for file in filenames if 'img_' + str(patch_size) + '_nonvessel' in file]
-		y_0 = [os.path.join(datadir, file) for file in filenames if 'label_' + str(patch_size) + '_vessel' in file]
-		y_1 = [os.path.join(datadir, file) for file in filenames if 'label_' + str(patch_size) + '_nonvessel' in file]
-
-
+	# retrieve patch file names
+	X_0 = []
+	X_1 = []
+	y_0 = []
+	y_1 = []
+	for p, patch in enumerate(patch_size):
+		X_0.append([os.path.join(datadir, filename) for filename in os.listdir(datadir) if '_img_'+str(patch)+'_vessel' in filename])
+		X_1.append([os.path.join(datadir, filename) for filename in os.listdir(datadir) if '_img_'+str(patch)+'_nonvessel' in filename])
+		y_0.append([os.path.join(datadir, filename) for filename in os.listdir(datadir) if '_label_'+str(patch)+'_vessel' in filename])
+		y_1.append([os.path.join(datadir, filename) for filename in os.listdir(datadir) if '_label_'+str(patch)+'_nonvessel' in filename])
+		
 	return X_0, X_1, y_0, y_1
-
-
 
 def create_training_datasets(patch_size, datadir):
 	"""
