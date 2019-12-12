@@ -5,7 +5,7 @@ loaded datasets. After training the model and results of training are saved to f
 
 import numpy as np
 import os
-from prepare_train_val_sets import create_training_datasets
+from Full_vasculature.data_processing.prepare_train_val_sets import create_training_datasets
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping, ModelCheckpoint
 from tensorflow.keras.models import load_model
@@ -191,7 +191,7 @@ class Trainer():
 			os.makedirs(model_path)
 			
 		# --- Load model data
-		patch_size_list = [self.model.layers[1].input_shape[0][1], self.model.layers[0].input_shape[0][1]]
+		patch_size_list = np.sort([layer.input_shape[0][1] for layer in self.model.layers if "input" in layer.name], axis=0)
 		train_X_0, train_X_1, train_y_0, train_y_1, val_X_0, val_X_1, val_y_0, val_y_1, = create_training_datasets(patch_size_list, self.get_model_data_dir())
 
 		# --- Compile model
@@ -200,7 +200,7 @@ class Trainer():
 
 		# --- Creating generators	
 		num_of_outputs = len(self.loss.keys()) if isinstance(self.loss, dict) else 1
-		input_dim = [self.model.layers[1].input_shape[0][1:-1], self.model.layers[0].input_shape[0][1:-1]]
+		input_dim = np.sort([layer.input_shape[0][1:-1] for layer in self.model.layers if "input" in layer.name], axis=0)
 		train_generator = self.BalancedDataGenerator(train_X_0, train_X_1, train_y_0[0], train_y_1[0], num_of_outputs,  
 													batch_size=self.batch_size, dim=input_dim)
 		val_generator = self.BalancedDataGenerator(val_X_0, val_X_1, val_y_0[0], val_y_1[0], num_of_outputs, 
